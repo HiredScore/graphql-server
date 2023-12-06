@@ -6,15 +6,18 @@ GraphQL-Server is a base library that serves as a helper
 for building GraphQL servers or integrations into existing web frameworks using
 [GraphQL-Core](https://github.com/graphql-python/graphql-core).
 """
+import asyncio
+import inspect
 import json
 from collections import namedtuple
 from collections.abc import MutableMapping
+from types import CoroutineType, GeneratorType
 from typing import Any, Callable, Collection, Dict, List, Optional, Type, Union, cast
 
 from graphql.error import GraphQLError
 from graphql.execution import ExecutionResult, execute
 from graphql.language import OperationType, parse
-from graphql.pyutils import AwaitableOrValue
+from graphql.pyutils import AwaitableOrValue, is_awaitable
 from graphql.type import GraphQLSchema, validate_schema
 from graphql.utilities import get_operation_ast
 from graphql.validation import ASTValidationRule, validate
@@ -122,12 +125,26 @@ def run_http_query(
         get_graphql_params(entry, extra_data) for entry in data
     ]
 
+    # loop = asyncio.get_event_loop()
+    # results: List[Optional[AwaitableOrValue[ExecutionResult]]] = [
+    #     loop.run_until_complete(get_response(
+    #         schema, params, catch_exc, allow_only_query, run_sync, **execute_options
+    #     ))
+    #     for params in all_params
+    # ]
+    # loop.close()
+
     results: List[Optional[AwaitableOrValue[ExecutionResult]]] = [
         get_response(
             schema, params, catch_exc, allow_only_query, run_sync, **execute_options
         )
         for params in all_params
     ]
+
+    loop = asyncio.get_event_loop()
+
+    results = [loop.run_until_complete(res) if is_awaitable(res) else res for res in results]
+
     return GraphQLResponse(results, all_params)
 
 
@@ -234,6 +251,23 @@ def assume_not_awaitable(_value: Any) -> bool:
     """Replacement for isawaitable if everything is assumed to be synchronous."""
     return False
 
+CO_ITERABLE_COROUTINE = inspect.CO_ITERABLE_COROUTINE
+
+def is_awaitable(value: Any) -> bool:
+    """Return true if object can be passed to an ``await`` expression.
+
+    Instead of testing if the object is an instance of abc.Awaitable, it checks
+    the existence of an `__await__` attribute. This is much faster.
+    """
+    return (
+        # check for coroutine objects
+        isinstance(value, CoroutineType)
+        # check for old-style generator based coroutine objects
+        or isinstance(value, GeneratorType)
+        and bool(value.gi_code.co_flags & CO_ITERABLE_COROUTINE)
+        # check for other awaitables (e.g. futures)
+        or (hasattr(value, "__await__") and value.__await__ is not None)
+    )
 
 def get_response(
     schema: GraphQLSchema,
@@ -298,7 +332,7 @@ def get_response(
             document,
             variable_values=params.variables,
             operation_name=params.operation_name,
-            is_awaitable=assume_not_awaitable if run_sync else None,
+            is_awaitable=assume_not_awaitable if run_sync else is_awaitable,
             **kwargs,
         )
 
@@ -306,6 +340,10 @@ def get_response(
         return None
 
     return execution_result
+    # if is_awaitable(execution_result):
+    #     return asyncio.run(execution_result)
+    # else:
+    #     return execution_result
 
 
 def format_execution_result(

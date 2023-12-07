@@ -17,7 +17,7 @@ from typing import Any, Callable, Collection, Dict, List, Optional, Type, Union,
 from graphql.error import GraphQLError
 from graphql.execution import ExecutionResult, execute
 from graphql.language import OperationType, parse
-from graphql.pyutils import AwaitableOrValue, is_awaitable
+from graphql.pyutils import AwaitableOrValue
 from graphql.type import GraphQLSchema, validate_schema
 from graphql.utilities import get_operation_ast
 from graphql.validation import ASTValidationRule, validate
@@ -46,7 +46,6 @@ __all__ = [
     "format_error_default",
 ]
 
-
 # The public data structures
 
 GraphQLParams = namedtuple("GraphQLParams", "query variables operation_name")
@@ -63,14 +62,14 @@ def format_error_default(error: GraphQLError) -> Dict:
 
 
 def run_http_query(
-    schema: GraphQLSchema,
-    request_method: str,
-    data: Union[Dict, List[Dict]],
-    query_data: Optional[Dict] = None,
-    batch_enabled: bool = False,
-    catch: bool = False,
-    run_sync: bool = True,
-    **execute_options,
+        schema: GraphQLSchema,
+        request_method: str,
+        data: Union[Dict, List[Dict]],
+        query_data: Optional[Dict] = None,
+        batch_enabled: bool = False,
+        catch: bool = False,
+        run_sync: bool = True,
+        **execute_options,
 ) -> GraphQLResponse:
     """Execute GraphQL coming from an HTTP query against a given schema.
 
@@ -125,15 +124,6 @@ def run_http_query(
         get_graphql_params(entry, extra_data) for entry in data
     ]
 
-    # loop = asyncio.get_event_loop()
-    # results: List[Optional[AwaitableOrValue[ExecutionResult]]] = [
-    #     loop.run_until_complete(get_response(
-    #         schema, params, catch_exc, allow_only_query, run_sync, **execute_options
-    #     ))
-    #     for params in all_params
-    # ]
-    # loop.close()
-
     results: List[Optional[AwaitableOrValue[ExecutionResult]]] = [
         get_response(
             schema, params, catch_exc, allow_only_query, run_sync, **execute_options
@@ -142,7 +132,6 @@ def run_http_query(
     ]
 
     loop = asyncio.get_event_loop()
-
     results = [loop.run_until_complete(res) if is_awaitable(res) else res for res in results]
 
     return GraphQLResponse(results, all_params)
@@ -164,10 +153,10 @@ def json_encode_pretty(data: Union[Dict, List]) -> str:
 
 
 def encode_execution_results(
-    execution_results: List[Optional[ExecutionResult]],
-    format_error: Callable[[GraphQLError], Dict] = format_error_default,
-    is_batch: bool = False,
-    encode: Callable[[Dict], Any] = json_encode,
+        execution_results: List[Optional[ExecutionResult]],
+        format_error: Callable[[GraphQLError], Dict] = format_error_default,
+        is_batch: bool = False,
+        encode: Callable[[Dict], Any] = json_encode,
 ) -> ServerResponse:
     """Serialize the ExecutionResults.
 
@@ -251,7 +240,9 @@ def assume_not_awaitable(_value: Any) -> bool:
     """Replacement for isawaitable if everything is assumed to be synchronous."""
     return False
 
+
 CO_ITERABLE_COROUTINE = inspect.CO_ITERABLE_COROUTINE
+
 
 def is_awaitable(value: Any) -> bool:
     """Return true if object can be passed to an ``await`` expression.
@@ -261,23 +252,24 @@ def is_awaitable(value: Any) -> bool:
     """
     return (
         # check for coroutine objects
-        isinstance(value, CoroutineType)
-        # check for old-style generator based coroutine objects
-        or isinstance(value, GeneratorType)
-        and bool(value.gi_code.co_flags & CO_ITERABLE_COROUTINE)
-        # check for other awaitables (e.g. futures)
-        or (hasattr(value, "__await__") and value.__await__ is not None)
+            isinstance(value, CoroutineType)
+            # check for old-style generator based coroutine objects
+            or isinstance(value, GeneratorType)
+            and bool(value.gi_code.co_flags & CO_ITERABLE_COROUTINE)
+            # check for other awaitables (e.g. futures)
+            or (hasattr(value, "__await__") and value.__await__ is not None)
     )
 
+
 def get_response(
-    schema: GraphQLSchema,
-    params: GraphQLParams,
-    catch_exc: Type[BaseException],
-    allow_only_query: bool = False,
-    run_sync: bool = True,
-    validation_rules: Optional[Collection[Type[ASTValidationRule]]] = None,
-    max_errors: Optional[int] = None,
-    **kwargs,
+        schema: GraphQLSchema,
+        params: GraphQLParams,
+        catch_exc: Type[BaseException],
+        allow_only_query: bool = False,
+        run_sync: bool = True,
+        validation_rules: Optional[Collection[Type[ASTValidationRule]]] = None,
+        max_errors: Optional[int] = None,
+        **kwargs,
 ) -> Optional[AwaitableOrValue[ExecutionResult]]:
     """Get an individual execution result as response, with option to catch errors.
 
@@ -340,15 +332,11 @@ def get_response(
         return None
 
     return execution_result
-    # if is_awaitable(execution_result):
-    #     return asyncio.run(execution_result)
-    # else:
-    #     return execution_result
 
 
 def format_execution_result(
-    execution_result: Optional[ExecutionResult],
-    format_error: Optional[Callable[[GraphQLError], Dict]] = format_error_default,
+        execution_result: Optional[ExecutionResult],
+        format_error: Optional[Callable[[GraphQLError], Dict]] = format_error_default,
 ) -> FormattedResult:
     """Format an execution result into a GraphQLResponse.
 
@@ -364,7 +352,7 @@ def format_execution_result(
             response = {"errors": fe}
 
             if execution_result.errors and any(
-                not getattr(e, "path", None) for e in execution_result.errors
+                    not getattr(e, "path", None) for e in execution_result.errors
             ):
                 status_code = 400
             else:
